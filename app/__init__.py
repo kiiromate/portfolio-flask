@@ -1,26 +1,33 @@
+import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from config import Config
 
 db = SQLAlchemy()
 migrate = Migrate()
 
-def create_app(config_class=Config):
-    app = Flask(__name__)
-    app.config.from_object(config_class)
+def create_app(test_config=None):
+    app = Flask(__name__, instance_relative_config=True)
     
+    if test_config is None:
+        # Load the instance config, if it exists, when not testing
+        app.config.from_object('config.Config')
+    else:
+        # Load the test config if passed in
+        app.config.update(test_config)
+
+    # Ensure the instance folder exists
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+
+    # Initialize database
     db.init_app(app)
     migrate.init_app(app, db)
-    
+
     # Register blueprints
-    from app.routes.main import bp as main_bp
-    app.register_blueprint(main_bp)
-    
-    from app.routes.projects import bp as projects_bp
-    app.register_blueprint(projects_bp, url_prefix='/projects')
-    
-    from app.routes.blog import bp as blog_bp
-    app.register_blueprint(blog_bp, url_prefix='/blog')
-    
+    from . import routes
+    routes.init_app(app)
+
     return app
